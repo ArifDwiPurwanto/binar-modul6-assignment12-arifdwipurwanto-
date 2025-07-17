@@ -1,0 +1,48 @@
+{
+  "name": "update-profile",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "jest",
+    "db-create": "node scripts/create-db.js",
+    "db-drop": "node scripts/drop-db.js",
+    "db-reset": "npm run db-drop && npm run db-create",
+    "db-test": "node scripts/test-db-connection.js"
+  },
+  "dependencies": {
+    "@primer/css": "17.0.1",
+    "jsonwebtoken": "^9.0.2",
+    "next": "15.3.4",
+    "pg": "^8.11.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-hot-toast": "^2.5.2"
+  },
+  "devDependencies": {
+    "@edge-runtime/jest-environment": "^4.0.0",
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@types/jest": "^30.0.0",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/node": "^20",
+    "@types/pg": "^8.10.9",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/supertest": "^6.0.3",
+    "eslint": "^9",
+    "eslint-config-next": "15.3.4",
+    "jest": "^30.0.2",
+    "jest-environment-jsdom": "^30.0.2",
+    "supertest": "^7.1.1",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "undici": "^7.11.0",
+    "whatwg-fetch": "^3.6.20"
+  }
+}
