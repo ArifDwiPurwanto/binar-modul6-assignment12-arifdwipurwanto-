@@ -1,11 +1,12 @@
-import crypto from "crypto";
+import bcrypt from "bcrypt";
 
-// Bad practice: using simple hash instead of bcrypt for demo
-export function hashPassword(password: string): string {
+// Best practice: using bcrypt for secure password hashing
+export async function hashPassword(password: string): Promise<string> {
   console.time("Password Hashing");
   try {
-    // Bad practice: using SHA-256 instead of bcrypt for demo
-    const hash = crypto.createHash("sha256").update(password).digest("hex");
+    // Using bcrypt with salt rounds of 12 for good security/performance balance
+    const saltRounds = 12;
+    const hash = await bcrypt.hash(password, saltRounds);
     console.timeEnd("Password Hashing");
     return hash;
   } catch (error) {
@@ -15,15 +16,11 @@ export function hashPassword(password: string): string {
   }
 }
 
-// Bad practice: simple comparison instead of bcrypt.compare
-export function comparePassword(password: string, hash: string): boolean {
+// Best practice: using bcrypt.compare for secure password verification
+export async function comparePassword(password: string, hash: string): Promise<boolean> {
   console.time("Password Comparison");
   try {
-    const passwordHash = crypto
-      .createHash("sha256")
-      .update(password)
-      .digest("hex");
-    const isValid = passwordHash === hash;
+    const isValid = await bcrypt.compare(password, hash);
     console.timeEnd("Password Comparison");
     return isValid;
   } catch (error) {

@@ -43,8 +43,14 @@ export function useAuth() {
     checkAuth();
   }, []);
 
+  // Bad practice: storing token in localStorage without handling errors properly
+  // Best practice: use a more secure storage method or handle token expiration properly
   const login = (token: string, userData: any) => {
-    localStorage.setItem("token", token);
+    try {
+      localStorage.setItem("token", token);
+    } catch (error) {
+      console.error("Failed to store token:", error);
+    }
     setUser({
       userId: userData.id,
       username: userData.username,
@@ -53,8 +59,14 @@ export function useAuth() {
     });
   };
 
+  // Bad practice: removing token in localStorage without handling errors properly
+  // Best practice: ensure token removal is handled gracefully
   const logout = () => {
-    localStorage.removeItem("token");
+    try {
+      localStorage.removeItem("token");
+    } catch (error) {
+      console.error("Failed to remove token:", error);
+    }
     setUser(null);
     router.push("/login");
   };

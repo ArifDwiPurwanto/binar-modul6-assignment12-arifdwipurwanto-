@@ -25,36 +25,23 @@ export async function POST(request: Request) {
       );
     }
 
-    // Bad practice: inefficient query with multiple joins and wildcard select
-    const query = `
+    // Step 1: First, get basic auth and user data for login validation
+    const authQuery = `
       SELECT 
         a.id as auth_id,
         a.email,
         a.password,
         u.id as user_id,
         u.username,
-        u.full_name,
-        u.birth_date,
-        u.bio,
-        u.long_bio,
-        u.profile_json,
-        u.address,
-        u.phone_number,
-        ur.role,
-        ud.division_name,
-        -- Bad practice: unnecessary subqueries for demo
-        (SELECT COUNT(*) FROM user_logs WHERE user_id = u.id) as log_count,
-        (SELECT COUNT(*) FROM user_roles WHERE user_id = u.id) as role_count
+        u.full_name
       FROM auth a
-      LEFT JOIN users u ON a.id = u.auth_id
-      LEFT JOIN user_roles ur ON u.id = ur.user_id
-      LEFT JOIN user_divisions ud ON u.id = ud.user_id
+      INNER JOIN users u ON a.id = u.auth_id
       WHERE a.email = $1
     `;
 
-    const result = await executeQuery(query, [email]);
+    const authResult = await executeQuery(authQuery, [email]);
 
-    if (result.rows.length === 0) {
+    if (authResult.rows.length === 0) {
       console.timeEnd("Login API Execution");
       return NextResponse.json(
         { message: "Invalid credentials." },
@@ -62,10 +49,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const user = result.rows[0];
+    const user = authResult.rows[0];
 
-    // Bad practice: using simple hash comparison instead of bcrypt
-    const isPasswordValid = comparePassword(password, user.password);
+    // Best practice: using bcrypt for secure password comparison
+    const isPasswordValid = await comparePassword(password, user.password);
 
     if (!isPasswordValid) {
       console.timeEnd("Login API Execution");
@@ -75,14 +62,30 @@ export async function POST(request: Request) {
       );
     }
 
-    // Bad practice: including sensitive data in token
+    // Step 2: After successful authentication, get additional user details
+    const userDetailsQuery = `
+      SELECT 
+        u.birth_date,
+        u.bio,
+        u.long_bio,
+        u.profile_json,
+        u.address,
+        u.phone_number,
+        ur.role,
+        ud.division_name
+      FROM users u
+      LEFT JOIN user_roles ur ON u.id = ur.user_id
+      LEFT JOIN user_divisions ud ON u.id = ud.user_id
+      WHERE u.id = $1
+    `;
+
+    const userDetailsResult = await executeQuery(userDetailsQuery, [user.user_id]);
+    const userDetails = userDetailsResult.rows[0] || {};
+
+    // Best practice: minimal data in token - only essential identifiers
     const tokenPayload = {
       userId: user.user_id,
-      authId: user.auth_id,
-      email: user.email,
-      username: user.username,
-      fullName: user.full_name,
-      role: user.role,
+      role: userDetails.role,
     };
 
     const token = generateToken(tokenPayload);
@@ -103,14 +106,14 @@ export async function POST(request: Request) {
         username: user.username,
         fullName: user.full_name,
         email: user.email,
-        role: user.role,
-        division: user.division_name,
-        bio: user.bio,
-        longBio: user.long_bio,
-        profileJson: user.profile_json,
-        address: user.address,
-        phoneNumber: user.phone_number,
-        birthDate: user.birth_date,
+        role: userDetails.role,
+        division: userDetails.division_name,
+        bio: userDetails.bio,
+        longBio: userDetails.long_bio,
+        profileJson: userDetails.profile_json,
+        address: userDetails.address,
+        phoneNumber: userDetails.phone_number,
+        birthDate: userDetails.birth_date,
       },
     });
   } catch (error) {

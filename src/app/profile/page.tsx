@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import Navbar from "@/components/Navbar";
 import { useAuth } from "@/hooks/useAuth";
@@ -26,56 +27,109 @@ export default function ProfilePage() {
   const [longBio, setLongBio] = useState("");
   const [address, setAddress] = useState("");
   const [errors, setErrors] = useState<ProfileErrors>({});
-  const [loading, setLoading] = useState(true);
-  const { user, requireAuth } = useAuth();
+  const [dataLoading, setDataLoading] = useState(true);
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
 
   // Bad practice: checking auth on every render
+  // Best practice: check auth status based on user and loading state, avoid function dependencies
   useEffect(() => {
-    requireAuth("/login");
-  }, [requireAuth]);
+    if (!authLoading && !user) {
+      router.push("/login");
+    }
+  }, [user, authLoading, router]);
 
   // Bad practice: fetching user data on every render
+  // Best practice: fetch once when user is available, with proper validation and cleanup
   useEffect(() => {
-    const fetchUserData = async () => {
-      if (!user) return;
+    if (!user) {
+      setDataLoading(false);
+      return;
+    }
 
+    const abortController = new AbortController();
+    
+    const validateAndSanitizeUserData = (userData: any) => {
+      const formatBirthDate = (birthDate: any) => {
+        if (!birthDate) return "";
+        return typeof birthDate === 'string' ? birthDate.split("T")[0] : "";
+      };
+
+      return {
+        username: typeof userData.username === 'string' ? userData.username.trim() : "",
+        fullName: typeof userData.fullName === 'string' ? userData.fullName.trim() : "",
+        email: typeof userData.email === 'string' ? userData.email.trim().toLowerCase() : "",
+        phoneNumber: typeof userData.phoneNumber === 'string' ? userData.phoneNumber.trim() : "",
+        birthDate: formatBirthDate(userData.birthDate),
+        bio: typeof userData.bio === 'string' ? userData.bio.trim() : "",
+        longBio: typeof userData.longBio === 'string' ? userData.longBio.trim() : "",
+        address: typeof userData.address === 'string' ? userData.address.trim() : "",
+      };
+    };
+    
+    const fetchUserData = async () => {
       try {
         const token = localStorage.getItem("token");
+        if (!token) {
+          toast.error("No authentication token found");
+          setDataLoading(false);
+          return;
+        }
+
         const response = await fetch(`/api/profile`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
+          signal: abortController.signal,
         });
 
-        if (response.ok) {
-          const data = await response.json();
-          const userData = data.user;
-
-          // Bad practice: setting state without validation
-          setUsername(userData.username || "");
-          setFullName(userData.fullName || "");
-          setEmail(userData.email || "");
-          setPhone(userData.phoneNumber || "");
-          // Fix birth date format for input field
-          setBirthDate(
-            userData.birthDate ? userData.birthDate.split("T")[0] : ""
-          );
-          setBio(userData.bio || "");
-          setLongBio(userData.longBio || "");
-          setAddress(userData.address || "");
-        } else {
-          toast.error("Failed to load user data");
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
+
+        const data = await response.json();
+        
+        // Best practice: validate API response structure before using
+        if (!data?.user) {
+          throw new Error("Invalid response format");
+        }
+
+        // Best practice: validate and sanitize data before setting state
+        const sanitizedData = validateAndSanitizeUserData(data.user);
+
+        // Bad practice: setting state without validation
+        // Best practice: set state with validated and sanitized data
+        setUsername(sanitizedData.username);
+        setFullName(sanitizedData.fullName);
+        setEmail(sanitizedData.email);
+        setPhone(sanitizedData.phoneNumber);
+        setBirthDate(sanitizedData.birthDate);
+        setBio(sanitizedData.bio);
+        setLongBio(sanitizedData.longBio);
+        setAddress(sanitizedData.address);
+        
       } catch (error) {
+        // Best practice: proper error type checking
+        if (error instanceof Error && error.name === 'AbortError') {
+          console.log('Fetch was aborted');
+          return;
+        }
         console.error("Fetch user data error:", error);
         toast.error("Failed to load user data");
       } finally {
-        setLoading(false);
+        if (!abortController.signal.aborted) {
+          setDataLoading(false);
+        }
       }
     };
 
     fetchUserData();
-  }, [user]);
+
+    // Best practice: cleanup function to abort fetch if component unmounts
+    return () => {
+      abortController.abort();
+    };
+  }, [user?.userId]); // Best practice: depend on user ID instead of entire user object
 
   const validate = () => {
     const newErrors: ProfileErrors = {};
@@ -152,7 +206,7 @@ export default function ProfilePage() {
     }
   };
 
-  if (loading) {
+  if (authLoading || dataLoading) {
     return (
       <>
         <Navbar />

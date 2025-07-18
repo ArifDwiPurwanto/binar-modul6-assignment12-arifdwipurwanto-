@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { executeQuery } from "@/lib/database";
-import { authMiddleware } from "@/lib/jwt";
 
 async function getUserById(request: Request) {
   console.time("Get User by ID Execution");
@@ -20,6 +19,7 @@ async function getUserById(request: Request) {
     }
 
     // Bad practice: inefficient query with wildcard select
+    // Best practice: optimized query with selective fields and efficient joins
     const query = `
       SELECT 
         u.id,
@@ -34,12 +34,10 @@ async function getUserById(request: Request) {
         u.created_at,
         u.updated_at,
         a.email,
-        ur.role,
-        ud.division_name
+        (SELECT role FROM user_roles WHERE user_id = u.id LIMIT 1) as role,
+        (SELECT division_name FROM user_divisions WHERE user_id = u.id LIMIT 1) as division_name
       FROM users u
-      LEFT JOIN auth a ON u.auth_id = a.id
-      LEFT JOIN user_roles ur ON u.id = ur.user_id
-      LEFT JOIN user_divisions ud ON u.id = ud.user_id
+      INNER JOIN auth a ON u.auth_id = a.id
       WHERE u.id = $1
     `;
 
@@ -82,4 +80,40 @@ async function getUserById(request: Request) {
 }
 
 // Bad practice: wrapping with auth middleware
-export const GET = authMiddleware(getUserById);
+// Best practice: direct authentication check with proper Next.js route handler pattern
+export async function GET(request: Request) {
+  console.time("Auth Check Execution");
+
+  try {
+    const authHeader = request.headers.get("authorization");
+
+    if (!authHeader?.startsWith("Bearer ")) {
+      console.timeEnd("Auth Check Execution");
+      return NextResponse.json(
+        { message: "No token provided" },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.substring(7);
+    
+    // Import verifyToken here to avoid circular dependencies
+    const { verifyToken } = await import("@/lib/jwt");
+    const decoded = verifyToken(token);
+
+    // Add user info to request context if needed
+    const enrichedRequest = Object.assign(request, { user: decoded });
+
+    console.timeEnd("Auth Check Execution");
+    
+    // Call the actual handler
+    return getUserById(enrichedRequest);
+  } catch (error) {
+    console.error("Auth check error:", error);
+    console.timeEnd("Auth Check Execution");
+    return NextResponse.json(
+      { message: "Invalid token" },
+      { status: 401 }
+    );
+  }
+}

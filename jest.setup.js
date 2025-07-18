@@ -7,8 +7,9 @@ global.TextDecoder = TextDecoder;
 
 // Only add Web API polyfills if we're not in a DOM environment
 if (typeof window === "undefined") {
-  const { Request, Response, Headers } = require("undici");
+  const { Request, Response, Headers, fetch } = require("undici");
   global.Request = Request;
   global.Response = Response;
   global.Headers = Headers;
+  global.fetch = fetch;
 }

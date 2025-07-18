@@ -12,15 +12,16 @@ export default function LoginPage() {
   const [errors, setErrors] = useState<{ email?: string; password?: string }>(
     {}
   );
-  const { user, loading, login, requireGuest } = useAuth();
+  const { user, loading, login } = useAuth();
   const router = useRouter();
 
   // Bad practice: checking auth on every render
+  // Best practice: proper auth check with user state and early return
   useEffect(() => {
-    if (!loading) {
-      requireGuest("/users");
+    if (!loading && user) {
+      router.push("/users");
     }
-  }, [loading, user, requireGuest]);
+  }, [loading, user, router]);
 
   const validate = () => {
     const newErrors: { email?: string; password?: string } = {};
@@ -55,6 +56,18 @@ export default function LoginPage() {
 
       if (response.ok) {
         // Bad practice: storing token without proper validation
+        // Best practice: validate token and user data before storing
+        if (!data.token || !data.user || typeof data.token !== 'string') {
+          toast.error("Invalid response from server.", { id: toastId });
+          return;
+        }
+        
+        // Validate user data structure
+        if (!data.user.id || !data.user.email || !data.user.username || !data.user.fullName) {
+          toast.error("Incomplete user data received.", { id: toastId });
+          return;
+        }
+        
         login(data.token, data.user);
         toast.success("Login successful!", { id: toastId });
         // Redirect to users page after successful login

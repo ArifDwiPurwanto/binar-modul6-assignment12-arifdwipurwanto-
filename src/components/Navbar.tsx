@@ -11,6 +11,16 @@ interface User {
   fullName: string;
 }
 
+// Best practice: Type safety for JWT payload
+interface JWTPayload {
+  userId: string;
+  username: string;
+  email: string;
+  fullName?: string;
+  exp?: number; // Token expiration time
+  iat?: number; // Token issued at time
+}
+
 export default function Navbar() {
   const [user, setUser] = useState<User | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -18,23 +28,58 @@ export default function Navbar() {
 
   useEffect(() => {
     // Bad practice: checking token on every render
-    const token = localStorage.getItem("token");
-    if (token) {
+    // Best practice: Secure JWT validation with proper error handling and type safety
+    const validateAndDecodeToken = () => {
       try {
+        const token = localStorage.getItem("token");
+        if (!token) {
+          setUser(null);
+          return;
+        }
+
         // Bad practice: decoding JWT without proper verification
-        const payload = JSON.parse(atob(token.split(".")[1]));
+        // Best practice: Check token format before processing
+        const tokenParts = token.split(".");
+        if (tokenParts.length !== 3) {
+          throw new Error("Invalid JWT format");
+        }
+
+        // Best practice: Safely decode JWT payload with type checking
+        const payload: JWTPayload = JSON.parse(atob(tokenParts[1]));
+        
+        // Best practice: Validate token expiration
+        const currentTime = Math.floor(Date.now() / 1000);
+        if (payload.exp && payload.exp < currentTime) {
+          throw new Error("Token has expired");
+        }
+
+        // Best practice: Validate required fields with type safety
+        if (!payload.userId || !payload.username || !payload.email) {
+          throw new Error("Invalid token payload - missing required fields");
+        }
+
+        // Best practice: Set user data with validated payload
         setUser({
           userId: payload.userId,
           username: payload.username,
           email: payload.email,
-          fullName: payload.fullName,
+          fullName: payload.fullName || "", // Best practice: provide default value
         });
       } catch (error) {
-        console.error("Token decode error:", error);
-        localStorage.removeItem("token");
+        console.error("Token validation error:", error);
+        // Best practice: Clean up invalid tokens and redirect
+        try {
+          localStorage.removeItem("token");
+        } catch (storageError) {
+          console.error("Failed to remove invalid token:", storageError);
+        }
+        setUser(null);
         router.push("/login");
       }
-    }
+    };
+
+    // Best practice: Use the secure validation function
+    validateAndDecodeToken();
   }, [router]);
 
   const handleLogout = () => {
@@ -43,6 +88,30 @@ export default function Navbar() {
     setUser(null);
     setShowDropdown(false);
     router.push("/login");
+  };
+
+  // Best practice: Secure logout with proper error handling and cleanup
+  const handleSecureLogout = () => {
+    try {
+      // Best practice: Clear all authentication data
+      localStorage.removeItem("token");
+      
+      // Best practice: Clear other potential auth-related data
+      sessionStorage.clear();
+      
+      // Best practice: Reset component state
+      setUser(null);
+      setShowDropdown(false);
+      
+      // Best practice: Navigate to login
+      router.push("/login");
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Best practice: Even if there's an error, still attempt cleanup
+      setUser(null);
+      setShowDropdown(false);
+      router.push("/login");
+    }
   };
 
   if (!user) {
@@ -93,10 +162,17 @@ export default function Navbar() {
                     Update Profile
                   </Link>
                   <button
-                    onClick={handleLogout}
+                    onClick={handleLogout} // Using original implementation
                     className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                   >
-                    Logout
+                    Logout (Original)
+                  </button>
+                  {/* Best practice: Alternative secure logout option */}
+                  <button
+                    onClick={handleSecureLogout} // Using best practice implementation
+                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 border-t border-gray-200"
+                  >
+                    Secure Logout (Best Practice)
                   </button>
                 </div>
               )}
@@ -105,11 +181,24 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Bad practice: click outside handler without useCallback */}
+      {/* Bad practice example (commented out for reference):
+          - No keyboard support
+          - Non-semantic HTML element with click handler
+          - No proper accessibility attributes
+      */}
+
+      {/* Best practice: Accessible click outside handler with keyboard support */}
       {showDropdown && (
-        <div
-          className="fixed inset-0 z-40"
+        <button
+          className="fixed inset-0 z-40 bg-transparent border-0 p-0 cursor-default"
           onClick={() => setShowDropdown(false)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') {
+              setShowDropdown(false);
+            }
+          }}
+          aria-label="Close dropdown menu"
+          type="button"
         />
       )}
     </nav>
